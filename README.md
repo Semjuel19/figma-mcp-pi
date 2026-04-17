@@ -52,43 +52,113 @@ From Figma's docs:
 
 ## Installation
 
-### Option 1: install from a local path
+This package can be installed into Pi in two main ways:
 
-If you are developing or testing this package locally:
+1. **from your local repository** while developing/testing
+2. **from npm** after the package is published
 
-```bash
-pi install /absolute/path/to/pi-figma-mcp
-```
+### Install into Pi from a local repository
 
-Or from the repository folder:
+Use this during local development, testing, or before publishing.
+
+#### Method A: install from the current folder
+
+From the root of this repository:
 
 ```bash
 pi install .
 ```
 
-### Option 2: install from npm
+#### Method B: install from an absolute path
 
-After publishing:
+From anywhere on your machine:
+
+```bash
+pi install /absolute/path/to/pi-figma-mcp
+```
+
+#### Method C: try it without permanently installing it
+
+This is useful for a quick test run:
+
+```bash
+pi -e /absolute/path/to/pi-figma-mcp
+```
+
+### Install into Pi from npm
+
+After this package is published to npm, install it into Pi with:
 
 ```bash
 pi install npm:pi-figma-mcp
 ```
 
-### Option 3: try it without installing globally
+If you want Pi to use a specific published version:
 
 ```bash
-pi -e /absolute/path/to/pi-figma-mcp
+pi install npm:pi-figma-mcp@0.1.0
+```
+
+### Verify the package is installed in Pi
+
+After either local or npm installation, you can verify it inside Pi by running:
+
+```text
+/figma-mcp-status
+```
+
+You can also inspect installed Pi packages with:
+
+```bash
+pi list
 ```
 
 ---
 
 ## Step-by-step setup
 
-### 1. Install this package into Pi
+### Local development setup
 
-Use one of the install methods above.
+1. Clone this repository.
+2. From the repository root, install it into Pi:
 
-### 2. Enable the desktop MCP server in Figma
+```bash
+pi install .
+```
+
+3. Open Pi in any project and run:
+
+```text
+/figma-mcp-status
+```
+
+If Pi was already running before installation, run:
+
+```text
+/reload
+```
+
+### Published npm setup
+
+After the package is published, install it into Pi with:
+
+```bash
+pi install npm:pi-figma-mcp
+```
+
+Then open Pi and run:
+
+```text
+/figma-mcp-status
+```
+
+If Pi was already running before installation, run:
+
+```text
+/reload
+```
+
+### 1. Confirm the desktop MCP server is enabled in Figma
 
 In the **Figma desktop app**:
 
@@ -108,7 +178,7 @@ http://127.0.0.1:3845/mcp
 
 Open Pi in your project.
 
-If the package was already installed, you can reload Pi resources with:
+If Pi was already running while you installed the package, reload Pi resources with:
 
 ```text
 /reload
