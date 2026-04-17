@@ -113,6 +113,81 @@ You can also inspect installed Pi packages with:
 pi list
 ```
 
+### Custom Figma MCP URL
+
+By default, the package connects to:
+
+```text
+http://127.0.0.1:3845/mcp
+```
+
+If your Figma MCP server uses a different URL, you can override it in three ways.
+
+#### Option 1: set a project-local URL inside Pi
+
+This stores the URL in:
+
+```text
+<your-project>/.pi/figma-mcp.json
+```
+
+Command:
+
+```text
+/figma-mcp-set-url http://127.0.0.1:9999/mcp
+```
+
+You can also be explicit:
+
+```text
+/figma-mcp-set-url --project http://127.0.0.1:9999/mcp
+```
+
+#### Option 2: set a global URL inside Pi
+
+This stores the URL in:
+
+```text
+~/.pi/agent/figma-mcp.json
+```
+
+Command:
+
+```text
+/figma-mcp-set-url --global http://127.0.0.1:9999/mcp
+```
+
+#### Option 3: override with an environment variable
+
+Environment variable has the highest priority:
+
+```bash
+export FIGMA_MCP_URL=http://127.0.0.1:9999/mcp
+```
+
+#### Resetting a custom URL
+
+Remove the project override:
+
+```text
+/figma-mcp-reset-url
+```
+
+Remove the global override:
+
+```text
+/figma-mcp-reset-url --global
+```
+
+#### URL priority order
+
+The extension resolves the server URL in this order:
+
+1. `FIGMA_MCP_URL` environment variable
+2. project config: `.pi/figma-mcp.json`
+3. global config: `~/.pi/agent/figma-mcp.json`
+4. default: `http://127.0.0.1:3845/mcp`
+
 ---
 
 ## Step-by-step setup
@@ -192,6 +267,11 @@ Inside Pi, run:
 /figma-mcp-status
 ```
 
+This command now also shows:
+
+- the active server URL
+- where that URL came from (`env`, `project`, `global`, or `default`)
+
 If everything is working, you should see that Pi is connected and that Figma tools were discovered.
 
 If Pi started before Figma MCP was enabled, run:
@@ -263,6 +343,29 @@ Use this if:
 
 Lists the Pi tools mirrored from the Figma MCP server.
 
+### `/figma-mcp-set-url [--project|--global] <url>`
+
+Sets a custom Figma MCP URL.
+
+Examples:
+
+```text
+/figma-mcp-set-url http://127.0.0.1:9999/mcp
+/figma-mcp-set-url --project http://127.0.0.1:9999/mcp
+/figma-mcp-set-url --global http://127.0.0.1:9999/mcp
+```
+
+### `/figma-mcp-reset-url [--global]`
+
+Removes a custom URL override.
+
+Examples:
+
+```text
+/figma-mcp-reset-url
+/figma-mcp-reset-url --global
+```
+
 ---
 
 ## How Pi sees the Figma tools
@@ -313,13 +416,30 @@ By default, this package connects to:
 http://127.0.0.1:3845/mcp
 ```
 
-If you need a different local endpoint, set:
+You can override the URL with:
 
-```bash
-export FIGMA_MCP_URL=http://127.0.0.1:3845/mcp
+- `FIGMA_MCP_URL` environment variable
+- project config file: `.pi/figma-mcp.json`
+- global config file: `~/.pi/agent/figma-mcp.json`
+- Pi commands:
+  - `/figma-mcp-set-url`
+  - `/figma-mcp-reset-url`
+
+Example project config file:
+
+```json
+{
+  "serverUrl": "http://127.0.0.1:9999/mcp"
+}
 ```
 
-In most setups, you do not need to change anything.
+Example global config file:
+
+```json
+{
+  "serverUrl": "http://127.0.0.1:9999/mcp"
+}
+```
 
 ---
 

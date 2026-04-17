@@ -1,3 +1,7 @@
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type, type TSchema } from "@sinclair/typebox";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -25,6 +29,7 @@ type RegisteredToolInfo = {
 
 const DEFAULT_FIGMA_MCP_URL = "http://127.0.0.1:3845/mcp";
 const CONNECTION_STATUS_KEY = "figma-mcp";
+const FIGMA_MCP_CONFIG_FILE = "figma-mcp.json";
 const SKILL_HINT =
   "Figma desktop MCP is available. For current selection, use Figma tools directly. For a shared design, the user can paste a Figma frame/layer URL.";
 
@@ -36,8 +41,83 @@ type UiLike = {
   setWidget?(key: string, lines: string[]): void;
 };
 
-function getServerUrl(): string {
-  return process.env.FIGMA_MCP_URL?.trim() || DEFAULT_FIGMA_MCP_URL;
+type ConfigScope = "project" | "global";
+
+type ResolvedServerConfig = {
+  url: string;
+  source: "env" | "project" | "global" | "default";
+  path?: string;
+};
+
+function getProjectConfigPath(cwd: string): string {
+  return join(cwd, ".pi", FIGMA_MCP_CONFIG_FILE);
+}
+
+function getGlobalConfigPath(): string {
+  return join(homedir(), ".pi", "agent", FIGMA_MCP_CONFIG_FILE);
+}
+
+async function readConfiguredUrl(path: string): Promise<string | undefined> {
+  try {
+    const content = await readFile(path, "utf8");
+    const parsed = JSON.parse(content) as { serverUrl?: unknown };
+    return typeof parsed.serverUrl === "string" && parsed.serverUrl.trim()
+      ? parsed.serverUrl.trim()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function resolveServerConfig(cwd: string): Promise<ResolvedServerConfig> {
+  const envUrl = process.env.FIGMA_MCP_URL?.trim();
+  if (envUrl) {
+    return { url: envUrl, source: "env" };
+  }
+
+  const projectPath = getProjectConfigPath(cwd);
+  const projectUrl = await readConfiguredUrl(projectPath);
+  if (projectUrl) {
+    return { url: projectUrl, source: "project", path: projectPath };
+  }
+
+  const globalPath = getGlobalConfigPath();
+  const globalUrl = await readConfiguredUrl(globalPath);
+  if (globalUrl) {
+    return { url: globalUrl, source: "global", path: globalPath };
+  }
+
+  return { url: DEFAULT_FIGMA_MCP_URL, source: "default" };
+}
+
+async function writeConfiguredUrl(path: string, url: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${JSON.stringify({ serverUrl: url }, null, 2)}\n`, "utf8");
+}
+
+async function removeConfiguredUrl(path: string): Promise<void> {
+  await rm(path, { force: true });
+}
+
+function parseSetUrlArgs(args: string): { scope: ConfigScope; url?: string } {
+  const trimmed = args.trim();
+  if (!trimmed) {
+    return { scope: "project" };
+  }
+
+  if (trimmed.startsWith("--global ")) {
+    return { scope: "global", url: trimmed.slice("--global ".length).trim() || undefined };
+  }
+
+  if (trimmed === "--global") {
+    return { scope: "global" };
+  }
+
+  if (trimmed.startsWith("--project ")) {
+    return { scope: "project", url: trimmed.slice("--project ".length).trim() || undefined };
+  }
+
+  return { scope: "project", url: trimmed };
 }
 
 function toPiToolName(mcpToolName: string): string {
@@ -275,9 +355,10 @@ export default function figmaMcpExtension(pi: ExtensionAPI) {
       promptGuidelines: getPromptGuidelines(tool.name),
       parameters: schemaToTypeBox(tool.inputSchema as JsonObject | undefined),
       async execute(_toolCallId, params, _signal, onUpdate, ctx) {
+        const serverConfig = await resolveServerConfig(ctx.cwd);
         onUpdate?.({
           content: [{ type: "text", text: `Calling Figma MCP tool: ${tool.name}...` }],
-          details: { serverUrl: getServerUrl(), mcpTool: tool.name },
+          details: { serverUrl: serverConfig.url, mcpTool: tool.name, serverSource: serverConfig.source },
         });
 
         const activeClient = await ensureConnected(ctx);
@@ -289,7 +370,8 @@ export default function figmaMcpExtension(pi: ExtensionAPI) {
         return {
           content: [{ type: "text", text: truncate(summarizeCallResult(result)) }],
           details: {
-            serverUrl: getServerUrl(),
+            serverUrl: serverConfig.url,
+            serverSource: serverConfig.source,
             mcpTool: tool.name,
             raw: result,
           },
@@ -313,10 +395,11 @@ export default function figmaMcpExtension(pi: ExtensionAPI) {
     return listed.tools.length;
   }
 
-  async function connect(ctx?: { ui: UiLike }): Promise<void> {
+  async function connect(ctx?: { ui: UiLike; cwd: string }): Promise<void> {
     await disconnect();
 
-    const serverUrl = getServerUrl();
+    const serverConfig = await resolveServerConfig(ctx?.cwd ?? process.cwd());
+    const serverUrl = serverConfig.url;
     const nextClient = new Client({
       name: "pi-figma-mcp",
       version: "0.1.0",
@@ -329,10 +412,11 @@ export default function figmaMcpExtension(pi: ExtensionAPI) {
     transport = nextTransport;
 
     const count = await discoverTools(ctx);
-    ctx?.ui.notify(`Connected to Figma desktop MCP (${count} tools)`, "info");
+    const sourceSuffix = serverConfig.source === "default" ? "default" : serverConfig.source;
+    ctx?.ui.notify(`Connected to Figma desktop MCP (${count} tools, ${sourceSuffix} URL)`, "info");
   }
 
-  async function ensureConnected(ctx?: { ui: UiLike }): Promise<Client> {
+  async function ensureConnected(ctx?: { ui: UiLike; cwd: string }): Promise<Client> {
     if (client) {
       return client;
     }
@@ -391,8 +475,10 @@ export default function figmaMcpExtension(pi: ExtensionAPI) {
     description: "Show Figma MCP connection status and discovered tools",
     handler: async (_args, ctx) => {
       const connected = Boolean(client);
+      const serverConfig = await resolveServerConfig(ctx.cwd);
       const lines = [
-        `Server URL: ${getServerUrl()}`,
+        `Server URL: ${serverConfig.url}`,
+        `URL source: ${serverConfig.source}${serverConfig.path ? ` (${serverConfig.path})` : ""}`,
         `Connected: ${connected ? "yes" : "no"}`,
         `Discovered tools: ${toolInfoByPiName.size}`,
         ...getToolLines(toolInfoByPiName),
@@ -422,6 +508,33 @@ export default function figmaMcpExtension(pi: ExtensionAPI) {
         setStatus("figma mcp: offline", ctx);
         ctx.ui.notify(`Failed to connect to Figma MCP: ${message}`, "error");
       }
+    },
+  });
+
+  pi.registerCommand("figma-mcp-set-url", {
+    description: "Set a custom Figma MCP URL. Default scope is project. Use /figma-mcp-set-url --global <url> for global.",
+    handler: async (args, ctx) => {
+      const parsed = parseSetUrlArgs(args);
+      if (!parsed.url) {
+        ctx.ui.notify("Usage: /figma-mcp-set-url [--project|--global] <url>", "warning");
+        return;
+      }
+
+      const path = parsed.scope === "global" ? getGlobalConfigPath() : getProjectConfigPath(ctx.cwd);
+      await writeConfiguredUrl(path, parsed.url);
+      await connect(ctx);
+      ctx.ui.notify(`Saved ${parsed.scope} Figma MCP URL: ${parsed.url}`, "info");
+    },
+  });
+
+  pi.registerCommand("figma-mcp-reset-url", {
+    description: "Reset custom Figma MCP URL. Default scope is project. Use /figma-mcp-reset-url --global for global.",
+    handler: async (args, ctx) => {
+      const scope: ConfigScope = args.trim() === "--global" ? "global" : "project";
+      const path = scope === "global" ? getGlobalConfigPath() : getProjectConfigPath(ctx.cwd);
+      await removeConfiguredUrl(path);
+      await connect(ctx);
+      ctx.ui.notify(`Removed ${scope} Figma MCP URL override`, "info");
     },
   });
 
