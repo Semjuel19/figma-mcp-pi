@@ -1,0 +1,52 @@
+{
+  "name": "pi-figma-mcp",
+  "version": "0.1.0",
+  "description": "Pi package that connects Pi to the Figma desktop MCP server and exposes Figma design tools inside Pi.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "figma",
+    "figma-mcp",
+    "mcp",
+    "extension"
+  ],
+  "type": "module",
+  "files": [
+    "extensions",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/figma-mcp"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "prepack": "npm run typecheck"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "devDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*",
+    "typescript": "^5.9.3"
+  }
+}
