@@ -18,11 +18,11 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/samikok/figma-mcp-pi.git"
+    "url": "git+https://github.com/Semjuel19/figma-mcp-pi.git"
   },
-  "homepage": "https://github.com/samikok/figma-mcp-pi#readme",
+  "homepage": "https://github.com/Semjuel19/figma-mcp-pi#readme",
   "bugs": {
-    "url": "https://github.com/samikok/figma-mcp-pi/issues"
+    "url": "https://github.com/Semjuel19/figma-mcp-pi/issues"
   },
   "files": [
     "extensions",
