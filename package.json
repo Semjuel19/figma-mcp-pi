@@ -1,6 +1,6 @@
 {
   "name": "pi-figma-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Pi package that connects Pi to the Figma desktop MCP server and exposes Figma design tools inside Pi.",
   "license": "MIT",
   "engines": {
